@@ -615,10 +615,11 @@
     const FEVER_MAX = 100;
     let isFever = false;
     let feverTimer = null;
+    let accumulatedFeverDamage = 0; // フィーバー中ダメージ蓄積用
 
     // バフ管理（重複加算対応）
-    let attackBuffBonus = 0.0;     // 加算式バフ（例: 0.5 = +50%）
-    let gaugeBuffBonus = 0.0;      // 技ゲージ溜まりやすさ加算
+    let attackBuffBonus = 0.0;
+    let gaugeBuffBonus = 0.0;
     let selectedSlotIndex = 0;
 
     window.addEventListener('load', () => {
@@ -631,10 +632,10 @@
     });
 
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v5');
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v6');
       if (!isGranted13500) {
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v5', 'true');
+        localStorage.setItem('puni_granted_13500_v6', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
@@ -693,7 +694,6 @@
       const bowlRadius = width * 0.48;
       const segments = 40;
 
-      // 隙間や抜け出しを防ぐ厚みのある完全密閉壁
       for (let i = 0; i < segments; i++) {
         const angle1 = Math.PI * 0.05 + (Math.PI * 0.90) * (i / segments);
         const angle2 = Math.PI * 0.05 + (Math.PI * 0.90) * ((i + 1) / segments);
@@ -730,6 +730,7 @@
       score = 0;
       feverGauge = 0;
       isFever = false;
+      accumulatedFeverDamage = 0;
       attackBuffBonus = 0.0;
       gaugeBuffBonus = 0.0;
 
@@ -933,7 +934,6 @@
       list.forEach(p => removePuni(p));
       createPuni(x, y, slot, newSize);
 
-      // ゲージ上昇に金爺のバフ（たまりやすさ）を適用
       const gaugeGain = list.length * 4 * (1.0 + gaugeBuffBonus);
       addGauge(slot, gaugeGain);
 
@@ -946,7 +946,6 @@
       let baseDamage = Math.floor(Math.pow(data.size, 1.8) * 15);
       if (isFever) baseDamage = Math.floor(baseDamage * 1.5);
       
-      // 攻撃力バフ（重複加算対応）を適用
       const totalAttackMultiplier = 1.0 + attackBuffBonus;
       baseDamage = Math.floor(baseDamage * totalAttackMultiplier);
 
@@ -968,15 +967,21 @@
     }
 
     function applyDamage(amount, x, y) {
-      enemyHp = Math.max(0, enemyHp - amount);
-      const hpPercent = (enemyHp / enemyMaxHp) * 100;
-      document.getElementById('hp-bar').style.width = `${hpPercent}%`;
-      document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
+      if (isFever) {
+        // フィーバー中はダメージを蓄積する
+        accumulatedFeverDamage += amount;
+        showDamageText(`FEVER! +${amount}`, x, y);
+      } else {
+        enemyHp = Math.max(0, enemyHp - amount);
+        const hpPercent = (enemyHp / enemyMaxHp) * 100;
+        document.getElementById('hp-bar').style.width = `${hpPercent}%`;
+        document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
 
-      showDamageText(amount, x, y);
+        showDamageText(amount, x, y);
 
-      if (enemyHp <= 0) {
-        onStageClear();
+        if (enemyHp <= 0) {
+          onStageClear();
+        }
       }
     }
 
@@ -1009,6 +1014,7 @@
 
     function startFever() {
       isFever = true;
+      accumulatedFeverDamage = 0; // 蓄積リセット
 
       let feverLeft = 10;
       feverTimer = setInterval(() => {
@@ -1021,8 +1027,27 @@
           isFever = false;
           feverGauge = 0;
           updateFeverBar();
+
+          // フィーバー終了時に蓄積ダメージを一括放流！
+          if (accumulatedFeverDamage > 0) {
+            const finalFeverDmg = Math.floor(accumulatedFeverDamage * 1.2); // ボーナス倍率1.2倍
+            showDamageText(`FEVER FINISH! [${finalFeverDmg}]`, canvas.width / 2 - 50, 50);
+            applyDamageDirect(finalFeverDmg);
+          }
         }
       }, 1000);
+    }
+
+    // フィーバー終了時などに直接敵HPを削る用
+    function applyDamageDirect(amount) {
+      enemyHp = Math.max(0, enemyHp - amount);
+      const hpPercent = (enemyHp / enemyMaxHp) * 100;
+      document.getElementById('hp-bar').style.width = `${hpPercent}%`;
+      document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
+
+      if (enemyHp <= 0) {
+        onStageClear();
+      }
     }
 
     function addGauge(slot, amount) {
@@ -1043,7 +1068,6 @@
       }
     }
 
-    // 必殺技発動（通常仕様：ゲージが100%溜まったら発動可能）
     function useSkill(slot) {
       if (gauges[slot] < GAUGE_MAX || enemyHp <= 0) return;
 
@@ -1064,54 +1088,40 @@
       }, 900);
     }
 
+    // ---- 大量消し（超高速・連続個別消去処理）の適用 ----
     function executeSkillEffect(char) {
       const centerY = canvas.height / 2;
       const totalAttackMultiplier = 1.0 + attackBuffBonus;
 
       switch (char.skillType) {
         case 'ALL_CLEAR': {
-          let count = puniBodies.length;
-          [...puniBodies].forEach(p => removePuni(p));
-          let dmg = Math.floor(count * 60 * totalAttackMultiplier);
-          applyDamage(dmg, canvas.width / 2, canvas.height / 2);
-          replenishPunis();
+          let targetPunis = [...puniBodies];
+          executeSequentialClear(targetPunis, 60, totalAttackMultiplier);
           break;
         }
 
         case 'MASS_CLEAR': {
           let countBefore = puniBodies.length;
           let targetPunis = puniBodies.slice(0, Math.floor(countBefore * 0.75));
-          targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 50 * totalAttackMultiplier);
-          applyDamage(dmg, canvas.width / 2, canvas.height / 2);
-          replenishPunis();
+          executeSequentialClear(targetPunis, 50, totalAttackMultiplier);
           break;
         }
 
         case 'CENTER_CLEAR': {
           let targetPunis = puniBodies.filter(p => Math.abs(p.position.y - centerY) < 90);
-          targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 40 * totalAttackMultiplier);
-          applyDamage(dmg, canvas.width / 2, canvas.height / 2);
-          replenishPunis();
+          executeSequentialClear(targetPunis, 40, totalAttackMultiplier);
           break;
         }
 
         case 'BOTTOM_CLEAR': {
           let targetPunis = puniBodies.filter(p => p.position.y > centerY);
-          targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 40 * totalAttackMultiplier);
-          applyDamage(dmg, canvas.width / 2, canvas.height / 2);
-          replenishPunis();
+          executeSequentialClear(targetPunis, 40, totalAttackMultiplier);
           break;
         }
 
         case 'TOP_CLEAR': {
           let targetPunis = puniBodies.filter(p => p.position.y <= centerY);
-          targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 40 * totalAttackMultiplier);
-          applyDamage(dmg, canvas.width / 2, canvas.height / 2);
-          replenishPunis();
+          executeSequentialClear(targetPunis, 40, totalAttackMultiplier);
           break;
         }
 
@@ -1127,13 +1137,38 @@
         }
 
         case 'BUFF': {
-          // バフ重複加算（発動ごとに +50% 加算され、効果時間がそれぞれ独立または延長）
           attackBuffBonus += 0.5;
           gaugeBuffBonus += 0.5;
           showDamageText(`BUFF +50%! (合計:${Math.round((1+attackBuffBonus)*100)}%)`, canvas.width / 2, 100);
           break;
         }
       }
+    }
+
+    // 超高速かつ連続して1個ずつ（または数個ずつ）バラバラに消去する内部処理
+    function executeSequentialClear(targetList, damagePerPuni, multiplier) {
+      if (targetList.length === 0) return;
+      let index = 0;
+
+      const interval = setInterval(() => {
+        if (index < targetList.length && enemyHp > 0) {
+          const puni = targetList[index];
+          const px = puni.position.x;
+          const py = puni.position.y;
+          
+          removePuni(puni);
+          
+          let dmg = Math.floor(damagePerPuni * multiplier);
+          applyDamage(dmg, px, py);
+          score += dmg * 5;
+          document.getElementById('score-text').innerText = `SCORE: ${score}`;
+
+          index++;
+        } else {
+          clearInterval(interval);
+          replenishPunis();
+        }
+      }, 25); // 25ミリ秒ごとに1個消去（超高速コンボ演出）
     }
 
     function onStageClear() {
