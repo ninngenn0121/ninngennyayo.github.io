@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ぷにぷに風パズルゲーム - ステージ1</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    }
+
+    body {
+      background-color: #1a1a1a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      width: 100%;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 750px;
+      background: linear-gradient(180deg, #2b1055 0%, #7597de 100%);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    /* ---- ステージ・エネミーエリア ---- */
+    #stage-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      position: relative;
+      background: rgba(0,0,0,0.2);
+    }
+
+    .stage-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      color: white;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px #000;
+      font-size: 14px;
+    }
+
+    .enemy-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+      position: relative;
+    }
+
+    .enemy-sprite {
+      width: 90px;
+      height: 90px;
+      background: radial-gradient(circle, #ff6b6b 0%, #c0392b 100%);
+      border-radius: 50%;
+      border: 4px solid #fff;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 40px;
+      animation: bounce 2s infinite ease-in-out;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .hp-bar-container {
+      width: 160px;
+      height: 16px;
+      background: #444;
+      border: 2px solid #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 8px;
+      position: relative;
+    }
+
+    .hp-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #2ecc71, #27ae60);
+      transition: width 0.2s ease-out;
+    }
+
+    .hp-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 10px;
+      color: white;
+      font-weight: bold;
+      text-shadow: 1px 1px 2px #000;
+    }
+
+    /* ---- チーム・必殺技ゲージエリア ---- */
+    #team-area {
+      height: 60px;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 10px;
+      border-top: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .char-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 22px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
+    }
+
+    .char-icon:active {
+      transform: scale(0.95);
+    }
+
+    .char-icon.ready {
+      animation: pulse 0.8s infinite alternate;
+      border-color: #f1c40f;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 5px #f1c40f; transform: scale(1); }
+      100% { box-shadow: 0 0 15px #f1c40f; transform: scale(1.08); }
+    }
+
+    .gauge-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 0%;
+      background: rgba(241, 196, 15, 0.6);
+      border-radius: 50%;
+      pointer-events: none;
+      transition: height 0.2s ease-out;
+    }
+
+    /* ---- パズルエリア ---- */
+    #puzzle-area {
+      width: 100%;
+      height: 380px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    canvas {
+      background: transparent;
+      touch-action: none;
+    }
+
+    /* ---- エフェクト / UIオーバーレイ ---- */
+    .damage-text {
+      position: absolute;
+      font-size: 24px;
+      font-weight: 900;
+      color: #ffeb3b;
+      -webkit-text-stroke: 1.5px #d32f2f;
+      pointer-events: none;
+      animation: floatUp 0.8s ease-out forwards;
+      z-index: 10;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(0.8); }
+      50% { transform: translateY(-20px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-40px) scale(1); }
+    }
+
+    #cutin-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 100;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .cutin-title {
+      color: #f1c40f;
+      font-size: 28px;
+      font-weight: bold;
+      text-shadow: 0 0 10px #f39c12;
+      margin-top: 10px;
+      animation: moveIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .cutin-char {
+      font-size: 80px;
+      animation: zoomIn 0.3s ease-out;
+    }
+
+    @keyframes zoomIn {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes moveIn {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(0); }
+    }
+
+    #result-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      color: white;
+    }
+
+    #result-modal h2 {
+      font-size: 36px;
+      color: #f1c40f;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px #000;
+    }
+
+    .btn {
+      padding: 10px 24px;
+      font-size: 18px;
+      font-weight: bold;
+      background: #2ecc71;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #27ae60;
+    }
+
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow: none;
+    }
+  </style>
+  <!-- Matter.js 物理エンジン -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+
+  <div id="game-container">
+    <!-- ステージエリア -->
+    <div id="stage-area">
+      <div class="stage-header">
+        <span>STAGE 1</span>
+        <span id="score-text">SCORE: 0</span>
+      </div>
+
+      <div class="enemy-box">
+        <div class="enemy-sprite" id="enemy-sprite">👿</div>
+        <div class="hp-bar-container">
+          <div class="hp-bar-fill" id="hp-bar"></div>
+          <div class="hp-text" id="hp-text">1000 / 1000</div>
+        </div>
+      </div>
+      <div></div>
+    </div>
+
+    <!-- チーム・必殺技ゲージ -->
+    <div id="team-area">
+      <div class="char-icon" style="background:#e74c3c;" onclick="useSkill(0)">
+        🐱<div class="gauge-overlay" id="gauge-0"></div>
+      </div>
+      <div class="char-icon" style="background:#3498db;" onclick="useSkill(1)">
+        🐻<div class="gauge-overlay" id="gauge-1"></div>
+      </div>
+      <div class="char-icon" style="background:#2ecc71;" onclick="useSkill(2)">
+        🐸<div class="gauge-overlay" id="gauge-2"></div>
+      </div>
+      <div class="char-icon" style="background:#f1c40f;" onclick="useSkill(3)">
+        🦊<div class="gauge-overlay" id="gauge-3"></div>
+      </div>
+      <div class="char-icon" style="background:#9b59b6;" onclick="useSkill(4)">
+        🐰<div class="gauge-overlay" id="gauge-4"></div>
+      </div>
+    </div>
+
+    <!-- パズルエリア -->
+    <div id="puzzle-area">
+      <canvas id="puzzle-canvas"></canvas>
+    </div>
+
+    <!-- 必殺技カットイン -->
+    <div id="cutin-overlay">
+      <div class="cutin-char" id="cutin-char">🐱</div>
+      <div class="cutin-title" id="cutin-title">ひっさつわざ！</div>
+    </div>
+
+    <!-- リザルト画面 -->
+    <div id="result-modal">
+      <h2 id="result-title">STAGE CLEAR!</h2>
+      <button class="btn" onclick="restartGame()">もう一度あそぶ</button>
+    </div>
+  </div>
+
+  <script>
+    const { Engine, Bodies, Composite, Runner } = Matter;
+
+    const PUNI_TYPES = [
+      { id: 0, emoji: '🐱', color: '#e74c3c', skillName: 'ひのたまラッシュ！' },
+      { id: 1, emoji: '🐻', color: '#3498db', skillName: 'ベアークラッシュ！' },
+      { id: 2, emoji: '🐸', color: '#2ecc71', skillName: 'ケロケロウェーブ！' },
+      { id: 3, emoji: '🦊', color: '#f1c40f', skillName: 'フォックスサンダー！' },
+      { id: 4, emoji: '🐰', color: '#9b59b6', skillName: 'バニーヒールアタック！' }
+    ];
+
+    const BASE_RADIUS = 18;
+    const MAX_SIZE = 8;
+
+    let engine, runner, canvas, ctx;
+    let puniBodies = [];
+    let isConnecting = false;
+    let connectedPunis = [];
+    let currentMousePos = { x: 0, y: 0 };
+
+    let score = 0;
+    let enemyMaxHp = 1000;
+    let enemyHp = 1000;
+    let gauges = [0, 0, 0, 0, 0];
+    const GAUGE_MAX = 100;
+
+    window.addEventListener('load', () => {
+      initPhysics();
+      spawnInitialPunis(45);
+      setupInputEvents();
+      gameLoop();
+    });
+
+    function initPhysics() {
+      const container = document.getElementById('puzzle-area');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      canvas = document.getElementById('puzzle-canvas');
+      canvas.width = width;
+      canvas.height = height;
+      ctx = canvas.getContext('2d');
+
+      engine = Engine.create({
+        gravity: { x: 0, y: 1.2 }
+      });
+
+      // --- 下部に溜まらないよう滑らかな円形ボウル状の壁を設定 ---
+      const centerX = width / 2;
+      const centerY = height / 2 - 10;
+      const bowlRadius = width * 0.46;
+      const segments = 32;
+
+      for (let i = 0; i < segments; i++) {
+        const angle1 = Math.PI * 0.15 + (Math.PI * 0.70) * (i / segments);
+        const angle2 = Math.PI * 0.15 + (Math.PI * 0.70) * ((i + 1) / segments);
+
+        const x1 = centerX + bowlRadius * Math.cos(angle1);
+        const y1 = centerY + bowlRadius * Math.sin(angle1);
+        const x2 = centerX + bowlRadius * Math.cos(angle2);
+        const y2 = centerY + bowlRadius * Math.sin(angle2);
+
+        const wallX = (x1 + x2) / 2;
+        const wallY = (y1 + y2) / 2;
+        const length = Math.hypot(x2 - x1, y2 - y1) + 2;
+        const wallAngle = Math.atan2(y2 - y1, x2 - x1);
+
+        const wall = Bodies.rectangle(wallX, wallY, length, 20, {
+          isStatic: true,
+          angle: wallAngle,
+          friction: 0.05,
+          restitution: 0.2
+        });
+        Composite.add(engine.world, wall);
+      }
+
+      runner = Runner.create();
+      Runner.run(runner, engine);
+    }
+
+    function createPuni(x, y, typeId, size = 1) {
+      const radius = BASE_RADIUS * Math.pow(1.22, size - 1);
+      const body = Bodies.circle(x, y, radius, {
+        restitution: 0.3,
+        friction: 0.05, // 摩擦を減らして滑りを良くする
+        density: 0.001 * size,
+        label: 'puni'
+      });
+
+      body.puniData = {
+        type: typeId,
+        size: size,
+        radius: radius
+      };
+
+      Composite.add(engine.world, body);
+      puniBodies.push(body);
+      return body;
+    }
+
+    function spawnInitialPunis(count) {
+      const width = canvas.width;
+      for (let i = 0; i < count; i++) {
+        const x = width / 2 + (Math.random() - 0.5) * 180;
+        const y = 30 + Math.random() * 100;
+        const typeId = Math.floor(Math.random() * PUNI_TYPES.length);
+        createPuni(x, y, typeId, 1);
+      }
+    }
+
+    function replenishPunis() {
+      const targetCount = 45;
+      const currentCount = puniBodies.length;
+      if (currentCount < targetCount) {
+        const need = targetCount - currentCount;
+        for (let i = 0; i < need; i++) {
+          setTimeout(() => {
+            if (puniBodies.length < targetCount && enemyHp > 0) {
+              const x = canvas.width / 2 + (Math.random() - 0.5) * 160;
+              const typeId = Math.floor(Math.random() * PUNI_TYPES.length);
+              createPuni(x, 20, typeId, 1);
+            }
+          }, i * 60);
+        }
+      }
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (isConnecting && connectedPunis.length > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = PUNI_TYPES[connectedPunis[0].puniData.type].color;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let i = 0; i < connectedPunis.length; i++) {
+          const pos = connectedPunis[i].position;
+          if (i === 0) ctx.moveTo(pos.x, pos.y);
+          else ctx.lineTo(pos.x, pos.y);
+        }
+        ctx.lineTo(currentMousePos.x, currentMousePos.y);
+        ctx.stroke();
+      }
+
+      for (let body of puniBodies) {
+        const { x, y } = body.position;
+        const data = body.puniData;
+        const pType = PUNI_TYPES[data.type];
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(body.angle);
+
+        const isSelected = connectedPunis.includes(body);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, data.radius, 0, Math.PI * 2);
+        ctx.fillStyle = pType.color;
+        ctx.fill();
+        ctx.lineWidth = isSelected ? 4 : 2;
+        ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)';
+        ctx.stroke();
+
+        ctx.rotate(-body.angle);
+        ctx.font = `${data.radius * 1.1}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pType.emoji, 0, 2);
+
+        ctx.restore();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function setupInputEvents() {
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      };
+
+      const startConnect = (e) => {
+        if (enemyHp <= 0) return;
+        isConnecting = true;
+        connectedPunis = [];
+        const pos = getPos(e);
+        currentMousePos = pos;
+        checkConnect(pos);
+      };
+
+      const moveConnect = (e) => {
+        if (!isConnecting) return;
+        const pos = getPos(e);
+        currentMousePos = pos;
+        checkConnect(pos);
+      };
+
+      const endConnect = () => {
+        if (!isConnecting) return;
+        isConnecting = false;
+
+        if (connectedPunis.length >= 2) {
+          mergePunis(connectedPunis);
+        } else if (connectedPunis.length === 1) {
+          popPuni(connectedPunis[0]);
+        }
+        connectedPunis = [];
+      };
+
+      canvas.addEventListener('mousedown', startConnect);
+      canvas.addEventListener('mousemove', moveConnect);
+      window.addEventListener('mouseup', endConnect);
+
+      canvas.addEventListener('touchstart', startConnect, { passive: true });
+      canvas.addEventListener('touchmove', moveConnect, { passive: true });
+      window.addEventListener('touchend', endConnect);
+    }
+
+    function checkConnect(pos) {
+      for (let body of puniBodies) {
+        const dist = Math.hypot(body.position.x - pos.x, body.position.y - pos.y);
+        if (dist < body.puniData.radius * 1.2) {
+          if (connectedPunis.length === 0) {
+            connectedPunis.push(body);
+          } else {
+            const last = connectedPunis[connectedPunis.length - 1];
+            const first = connectedPunis[0];
+
+            if (
+              body.puniData.type === first.puniData.type &&
+              !connectedPunis.includes(body)
+            ) {
+              const linkDist = Math.hypot(body.position.x - last.position.x, body.position.y - last.position.y);
+              if (linkDist < (body.puniData.radius + last.puniData.radius) * 2.2) {
+                connectedPunis.push(body);
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    function mergePunis(list) {
+      const target = list[list.length - 1];
+      const typeId = target.puniData.type;
+      
+      let totalSize = 0;
+      list.forEach(p => totalSize += p.puniData.size);
+      const newSize = Math.min(MAX_SIZE, totalSize);
+
+      const x = target.position.x;
+      const y = target.position.y;
+
+      list.forEach(p => removePuni(p));
+      createPuni(x, y, typeId, newSize);
+      addGauge(typeId, list.length * 3);
+      replenishPunis();
+    }
+
+    function popPuni(puni) {
+      const data = puni.puniData;
+      const damage = Math.floor(Math.pow(data.size, 1.8) * 15);
+
+      applyDamage(damage, puni.position.x, puni.position.y);
+      score += damage * 10;
+      document.getElementById('score-text').innerText = `SCORE: ${score}`;
+
+      addGauge(data.type, data.size * 4);
+      removePuni(puni);
+      replenishPunis();
+    }
+
+    function removePuni(puni) {
+      Composite.remove(engine.world, puni);
+      puniBodies = puniBodies.filter(b => b !== puni);
+    }
+
+    function applyDamage(amount, x, y) {
+      enemyHp = Math.max(0, enemyHp - amount);
+      const hpPercent = (enemyHp / enemyMaxHp) * 100;
+      document.getElementById('hp-bar').style.width = `${hpPercent}%`;
+      document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
+
+      showDamageText(amount, x, y);
+
+      if (enemyHp <= 0) {
+        setTimeout(() => {
+          document.getElementById('result-title').innerText = 'STAGE CLEAR!';
+          document.getElementById('result-modal').style.display = 'flex';
+        }, 500);
+      }
+    }
+
+    function showDamageText(amount, x, y) {
+      const container = document.getElementById('stage-area');
+      const el = document.createElement('div');
+      el.className = 'damage-text';
+      el.innerText = amount;
+      
+      el.style.left = `${40 + Math.random() * 120}px`;
+      el.style.top = `${60 + Math.random() * 40}px`;
+
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }
+
+    function addGauge(typeId, amount) {
+      gauges[typeId] = Math.min(GAUGE_MAX, gauges[typeId] + amount);
+      const overlay = document.getElementById(`gauge-${typeId}`);
+      const icon = overlay.parentElement;
+      
+      const percent = (gauges[typeId] / GAUGE_MAX) * 100;
+      overlay.style.height = `${percent}%`;
+
+      if (gauges[typeId] >= GAUGE_MAX) {
+        icon.classList.add('ready');
+      }
+    }
+
+    function useSkill(typeId) {
+      if (gauges[typeId] < GAUGE_MAX || enemyHp <= 0) return;
+
+      gauges[typeId] = 0;
+      document.getElementById(`gauge-${typeId}`).style.height = '0%';
+      const icon = document.getElementById(`gauge-${typeId}`).parentElement;
+      icon.classList.remove('ready');
+
+      const pType = PUNI_TYPES[typeId];
+      const cutin = document.getElementById('cutin-overlay');
+      document.getElementById('cutin-char').innerText = pType.emoji;
+      document.getElementById('cutin-title').innerText = pType.skillName;
+      cutin.style.display = 'flex';
+
+      setTimeout(() => {
+        cutin.style.display = 'none';
+
+        let targetPunis = puniBodies.filter(b => b.puniData.type === typeId);
+        if (targetPunis.length === 0) targetPunis = puniBodies.slice(0, 8);
+
+        let totalSkillDamage = 250;
+        targetPunis.forEach(p => {
+          totalSkillDamage += p.puniData.size * 20;
+          removePuni(p);
+        });
+
+        applyDamage(totalSkillDamage, canvas.width / 2, canvas.height / 2);
+        replenishPunis();
+      }, 1000);
+    }
+
+    function restartGame() {
+      enemyHp = enemyMaxHp;
+      score = 0;
+      gauges = [0, 0, 0, 0, 0];
+
+      document.getElementById('hp-bar').style.width = '100%';
+      document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
+      document.getElementById('score-text').innerText = `SCORE: 0`;
+      document.getElementById('result-modal').style.display = 'none';
+
+      for (let i = 0; i < 5; i++) {
+        document.getElementById(`gauge-${i}`).style.height = '0%';
+        document.getElementById(`gauge-${i}`).parentElement.classList.remove('ready');
+      }
+
+      [...puniBodies].forEach(p => removePuni(p));
+      spawnInitialPunis(45);
+    }
+  </script>
+</body>
+</html>
