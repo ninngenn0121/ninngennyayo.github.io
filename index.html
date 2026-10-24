@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム</title>
+  <title>ぷにぷに風パズルゲーム - テスト版</title>
   <style>
     * {
       box-sizing: border-box;
@@ -143,7 +143,7 @@
       width: 54px;
       height: 54px;
       border-radius: 50%;
-      border: 4px solid #888;
+      border: 4px solid #f1c40f; /* テスト用に常に点灯枠 */
       background: radial-gradient(circle, #e0e0e0 0%, #9e9e9e 100%);
       position: relative;
       cursor: pointer;
@@ -151,29 +151,24 @@
       justify-content: center;
       align-items: center;
       font-size: 26px;
-      box-shadow: inset 0 0 8px rgba(0,0,0,0.6), 0 4px 6px rgba(0,0,0,0.4);
+      box-shadow: 0 0 10px #f1c40f, inset 0 0 8px rgba(0,0,0,0.6);
       transition: transform 0.1s;
+      animation: pulseGlow 0.8s infinite alternate;
     }
 
     .char-icon:active { transform: scale(0.92); }
 
-    .char-icon.ready {
-      animation: pulseGlow 0.8s infinite alternate;
-      border-color: #f1c40f;
-    }
-
     @keyframes pulseGlow {
       0% { box-shadow: 0 0 5px #f1c40f; transform: scale(1); }
-      100% { box-shadow: 0 0 15px #f1c40f; transform: scale(1.08); }
+      100% { box-shadow: 0 0 12px #f1c40f; transform: scale(1.05); }
     }
 
     .gauge-overlay {
       position: absolute;
-      bottom: 0; left: 0; width: 100%; height: 0%;
-      background: rgba(241, 196, 15, 0.7);
+      bottom: 0; left: 0; width: 100%; height: 100%; /* テスト用常時満タン */
+      background: rgba(241, 196, 15, 0.3);
       border-radius: 50%;
       pointer-events: none;
-      transition: height 0.2s ease-out;
     }
 
     /* ---- パズルエリア ---- */
@@ -467,27 +462,22 @@
       <div></div>
     </div>
 
-    <!-- チーム・必殺技ゲージ -->
+    <!-- チーム・必殺技ゲージエリア（テスト用に常時即発動可能） -->
     <div id="team-area">
-      <div class="char-icon" id="team-icon-0" onclick="useSkill(0)">
+      <div class="char-icon ready" id="team-icon-0" onclick="useSkill(0)">
         <span id="team-emoji-0">🐱</span>
-        <div class="gauge-overlay" id="gauge-0"></div>
       </div>
-      <div class="char-icon" id="team-icon-1" onclick="useSkill(1)">
+      <div class="char-icon ready" id="team-icon-1" onclick="useSkill(1)">
         <span id="team-emoji-1">🐻</span>
-        <div class="gauge-overlay" id="gauge-1"></div>
       </div>
-      <div class="char-icon" id="team-icon-2" onclick="useSkill(2)">
+      <div class="char-icon ready" id="team-icon-2" onclick="useSkill(2)">
         <span id="team-emoji-2">🐸</span>
-        <div class="gauge-overlay" id="gauge-2"></div>
       </div>
-      <div class="char-icon" id="team-icon-3" onclick="useSkill(3)">
+      <div class="char-icon ready" id="team-icon-3" onclick="useSkill(3)">
         <span id="team-emoji-3">🦊</span>
-        <div class="gauge-overlay" id="gauge-3"></div>
       </div>
-      <div class="char-icon" id="team-icon-4" onclick="useSkill(4)">
+      <div class="char-icon ready" id="team-icon-4" onclick="useSkill(4)">
         <span id="team-emoji-4">🐰</span>
-        <div class="gauge-overlay" id="gauge-4"></div>
       </div>
     </div>
 
@@ -540,10 +530,10 @@
     <!-- ガシャ画面 -->
     <div class="modal-overlay" id="gacha-modal">
       <h2 class="modal-title">妖怪ガシャ</h2>
-      <p style="font-size:11px; color:#ccc; margin-bottom:8px;">単発: 500 Ypt / 10連: 4500 Ypt</p>
+      <p style="font-size:11px; color:#ccc; margin-bottom:8px;">単発: 500 Ypt / 10連: 4500 Ypt (10連はレア1体以上確定！)</p>
       <div id="gacha-action-area">
         <button class="btn btn-gacha" onclick="drawGacha(1)">1連ガシャ (500pt)</button>
-        <button class="btn btn-gacha" onclick="drawGacha(10)">10連ガシャ (4500pt)</button>
+        <button class="btn btn-gacha" onclick="drawGacha(10)">10連ガシャ (4500pt・確定枠あり)</button>
       </div>
       <div class="gacha-results" id="gacha-results"></div>
       <button class="btn btn-secondary" onclick="closeGachaModal()">閉じる</button>
@@ -553,19 +543,20 @@
   <script>
     const { Engine, Bodies, Composite, Runner } = Matter;
 
+    // ---- キャラクターデータ（高確率1%、よわよわ95%） ----
     const CHARACTER_DB = {
-      tadokoro: { id: 'tadokoro', name: '田所浩二', emoji: '🍺', color: '#d35400', rate: 0.002, skillType: 'MASS_CLEAR', skillName: '野獣ラッシュ', startGauge: 0.75, extraYpt: 0 },
-      kinji:     { id: 'kinji',    name: '金爺',     emoji: '👴', color: '#f39c12', rate: 0.002, skillType: 'BUFF',       skillName: 'ゴールドバフ', startGauge: 0,    extraYpt: 4 },
-      harinezumi:{ id: 'harinezumi',name: 'ハリネズミ',emoji: '🦔', color: '#e67e22', rate: 0.002, skillType: 'MAKE_BIG',   skillName: 'デカぷに召喚', startGauge: 0,    extraYpt: 0 },
-      takapi:    { id: 'takapi',   name: 'たｋぴー', emoji: '😎', color: '#9b59b6', rate: 0.002, skillType: 'ALL_CLEAR',  skillName: 'アルティメット全消し', startGauge: 0, extraYpt: 0 },
-      takashikun:{ id: 'takashikun',name: 'たかし',   emoji: '👦', color: '#2ecc71', rate: 0.002, skillType: 'MASS_CLEAR', skillName: 'たかしパンチ', startGauge: 0,    extraYpt: 0 },
-      yowayowa:  { id: 'yowayowa',  name: 'よわよわ', emoji: '💧', color: '#7f8c8d', rate: 0.99,  skillType: 'NONE',       skillName: 'なし',         startGauge: 0,    extraYpt: 0 },
+      tadokoro: { id: 'tadokoro', name: '田所浩二', emoji: '🍺', color: '#d35400', rate: 0.01, skillType: 'MASS_CLEAR', skillName: '野獣ラッシュ', startGauge: 1.0, extraYpt: 0 },
+      kinji:     { id: 'kinji',    name: '金爺',     emoji: '👴', color: '#f39c12', rate: 0.01, skillType: 'BUFF',       skillName: 'ゴールドバフ', startGauge: 1.0,    extraYpt: 4 },
+      harinezumi:{ id: 'harinezumi',name: 'ハリネズミ',emoji: '🦔', color: '#e67e22', rate: 0.01, skillType: 'MAKE_BIG',   skillName: 'デカぷに召喚', startGauge: 1.0,    extraYpt: 0 },
+      takapi:    { id: 'takapi',   name: 'たｋぴー', emoji: '😎', color: '#9b59b6', rate: 0.01, skillType: 'ALL_CLEAR',  skillName: 'アルティメット全消し', startGauge: 1.0, extraYpt: 0 },
+      takashikun:{ id: 'takashikun',name: 'たかし',   emoji: '👦', color: '#2ecc71', rate: 0.01, skillType: 'MASS_CLEAR', skillName: 'たかしパンチ', startGauge: 1.0,    extraYpt: 0 },
+      yowayowa:  { id: 'yowayowa',  name: 'よわよわ', emoji: '💧', color: '#7f8c8d', rate: 0.95,  skillType: 'NONE',       skillName: 'なし',         startGauge: 1.0,    extraYpt: 0 },
       
-      cat:   { id: 'cat',   name: 'ジバぷに', emoji: '🐱', color: '#e74c3c', rate: 0, skillType: 'CENTER_CLEAR', skillName: 'ひのたまパンチ', startGauge: 0, extraYpt: 0 },
-      bear:  { id: 'bear',  name: 'クマーぷに', emoji: '🐻', color: '#3498db', rate: 0, skillType: 'BOTTOM_CLEAR', skillName: 'クマーチョップ', startGauge: 0, extraYpt: 0 },
-      frog:  { id: 'frog',  name: 'ケロぷに', emoji: '🐸', color: '#2ecc71', rate: 0, skillType: 'TOP_CLEAR',    skillName: 'ケロジャンプ', startGauge: 0, extraYpt: 0 },
-      fox:   { id: 'fox',   name: 'コンぷに', emoji: '🦊', color: '#f1c40f', rate: 0, skillType: 'CENTER_CLEAR', skillName: 'きつねび', startGauge: 0, extraYpt: 0 },
-      bunny: { id: 'bunny', name: 'ウサぷに', emoji: '🐰', color: '#9b59b6', rate: 0, skillType: 'BOTTOM_CLEAR', skillName: 'うさキック', startGauge: 0, extraYpt: 0 }
+      cat:   { id: 'cat',   name: 'ジバぷに', emoji: '🐱', color: '#e74c3c', rate: 0, skillType: 'CENTER_CLEAR', skillName: 'ひのたまパンチ', startGauge: 1.0, extraYpt: 0 },
+      bear:  { id: 'bear',  name: 'クマーぷに', emoji: '🐻', color: '#3498db', rate: 0, skillType: 'BOTTOM_CLEAR', skillName: 'クマーチョップ', startGauge: 1.0, extraYpt: 0 },
+      frog:  { id: 'frog',  name: 'ケロぷに', emoji: '🐸', color: '#2ecc71', rate: 0, skillType: 'TOP_CLEAR',    skillName: 'ケロジャンプ', startGauge: 1.0, extraYpt: 0 },
+      fox:   { id: 'fox',   name: 'コンぷに', emoji: '🦊', color: '#f1c40f', rate: 0, skillType: 'CENTER_CLEAR', skillName: 'きつねび', startGauge: 1.0, extraYpt: 0 },
+      bunny: { id: 'bunny', name: 'ウサぷに', emoji: '🐰', color: '#9b59b6', rate: 0, skillType: 'BOTTOM_CLEAR', skillName: 'うさキック', startGauge: 1.0, extraYpt: 0 }
     };
 
     const STAGES = [
@@ -585,7 +576,7 @@
 
     let currentStageIndex = 0;
     let unlockedStage = 1;
-    let ypt = 13500; // デフォルト13500pt
+    let ypt = 13500;
 
     let ownedCharIds = ['cat', 'bear', 'frog', 'fox', 'bunny', 'yowayowa'];
     let myTeam = [
@@ -598,7 +589,6 @@
 
     const BASE_RADIUS = 17;
     const MAX_SIZE = 8;
-    const GAUGE_MAX = 100;
 
     let engine, runner, canvas, ctx;
     let puniBodies = [];
@@ -609,7 +599,6 @@
     let score = 0;
     let enemyMaxHp = 1000;
     let enemyHp = 1000;
-    let gauges = [0, 0, 0, 0, 0];
 
     let feverGauge = 0;
     const FEVER_MAX = 100;
@@ -617,9 +606,7 @@
     let feverTimer = null;
 
     let attackBuffRatio = 1.0;
-    let gaugeBuffRatio = 1.0;
     let buffTimer = null;
-
     let selectedSlotIndex = 0;
 
     window.addEventListener('load', () => {
@@ -631,22 +618,15 @@
       gameLoop();
     });
 
-    // 確実に13500ptを反映するロード処理
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v2');
-      
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v3');
       if (!isGranted13500) {
-        // まだ配布されていなければ強制付与＆保存フラグを立てる
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v2', 'true');
+        localStorage.setItem('puni_granted_13500_v3', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
-        if (savedYpt !== null) {
-          ypt = parseInt(savedYpt, 10);
-        } else {
-          ypt = 13500;
-        }
+        ypt = savedYpt !== null ? parseInt(savedYpt, 10) : 13500;
       }
 
       const savedStage = localStorage.getItem('puni_unlockedStage');
@@ -746,12 +726,6 @@
       document.getElementById('hp-bar').style.width = '100%';
       document.getElementById('hp-text').innerText = `${enemyHp} / ${enemyMaxHp}`;
       updateFeverBar();
-
-      for (let i = 0; i < 5; i++) {
-        const char = myTeam[i];
-        gauges[i] = char.startGauge ? GAUGE_MAX * char.startGauge : 0;
-        updateGaugeUI(i);
-      }
 
       [...puniBodies].forEach(p => removePuni(p));
       spawnInitialPunis(45);
@@ -939,7 +913,6 @@
       list.forEach(p => removePuni(p));
       createPuni(x, y, slot, newSize);
 
-      addGauge(slot, list.length * 3 * gaugeBuffRatio);
       addFever(list.length * 2);
       replenishPunis();
     }
@@ -954,7 +927,6 @@
       score += baseDamage * 10;
       document.getElementById('score-text').innerText = `SCORE: ${score}`;
 
-      addGauge(data.slot, data.size * 4 * gaugeBuffRatio);
       addFever(data.size * 3);
       removePuni(puni);
       replenishPunis();
@@ -1023,32 +995,12 @@
       }, 1000);
     }
 
-    function addGauge(slot, amount) {
-      gauges[slot] = Math.min(GAUGE_MAX, gauges[slot] + amount);
-      updateGaugeUI(slot);
-    }
-
-    function updateGaugeUI(slot) {
-      const overlay = document.getElementById(`gauge-${slot}`);
-      const icon = document.getElementById(`team-icon-${slot}`);
-      const percent = (gauges[slot] / GAUGE_MAX) * 100;
-      overlay.style.height = `${percent}%`;
-
-      if (gauges[slot] >= GAUGE_MAX) {
-        icon.classList.add('ready');
-      } else {
-        icon.classList.remove('ready');
-      }
-    }
-
+    // ---- 技テスト用：いつでもアイコンタップで即発動 ----
     function useSkill(slot) {
-      if (gauges[slot] < GAUGE_MAX || enemyHp <= 0) return;
+      if (enemyHp <= 0) return;
 
       const char = myTeam[slot];
       if (char.skillType === 'NONE') return;
-
-      gauges[slot] = 0;
-      updateGaugeUI(slot);
 
       const cutin = document.getElementById('cutin-overlay');
       document.getElementById('cutin-char').innerText = char.emoji;
@@ -1123,11 +1075,9 @@
 
         case 'BUFF': {
           attackBuffRatio = 1.5;
-          gaugeBuffRatio = 1.5;
           if (buffTimer) clearTimeout(buffTimer);
           buffTimer = setTimeout(() => {
             attackBuffRatio = 1.0;
-            gaugeBuffRatio = 1.0;
           }, 10000);
           showDamageText('BUFF UP!', canvas.width / 2, 100);
           break;
@@ -1253,6 +1203,7 @@
       document.getElementById('gacha-modal').style.display = 'none';
     }
 
+    // ---- ガシャ処理（確率変更＆10連確定枠追加） ----
     function drawGacha(count) {
       const cost = count === 1 ? 500 : 4500;
       if (ypt < cost) {
@@ -1264,22 +1215,33 @@
       updateYptDisplay();
 
       const results = [];
-      const keys = Object.keys(CHARACTER_DB).filter(k => CHARACTER_DB[k].rate > 0);
+      // 高レアリティキャラのキーリスト (確率各1%)
+      const rareKeys = ['tadokoro', 'kinji', 'harinezumi', 'takapi', 'takashikun'];
 
       for (let i = 0; i < count; i++) {
-        const rand = Math.random();
-        let cumulative = 0;
         let selected = CHARACTER_DB.yowayowa;
 
-        for (let k of keys) {
-          cumulative += CHARACTER_DB[k].rate;
-          if (rand <= cumulative) {
-            selected = CHARACTER_DB[k];
-            break;
+        // 10連の最後（または単発）で10連の場合は確定枠を適用
+        if (count === 10 && i === 9) {
+          // 10連の10枠目は高レアリティの中からランダムで1体確定
+          const randomRareKey = rareKeys[Math.floor(Math.random() * rareKeys.length)];
+          selected = CHARACTER_DB[randomRareKey];
+        } else {
+          // 通常抽選 (よわよわ95%、高レア各1%)
+          const rand = Math.random();
+          let cumulative = 0;
+          const allKeys = [...rareKeys, 'yowayowa'];
+
+          for (let k of allKeys) {
+            cumulative += CHARACTER_DB[k].rate;
+            if (rand <= cumulative) {
+              selected = CHARACTER_DB[k];
+              break;
+            }
           }
         }
-        results.push(selected);
 
+        results.push(selected);
         if (!ownedCharIds.includes(selected.id)) {
           ownedCharIds.push(selected.id);
         }
@@ -1294,8 +1256,8 @@
         item.className = 'gacha-item';
         item.innerHTML = `
           <div class="icon">${res.emoji}</div>
-          <div style="font-weight:bold; color:${res.rate < 0.01 ? '#f1c40f' : '#fff'}">${res.name}</div>
-          <div style="font-size:8px; color:#aaa;">${res.rate < 0.01 ? 'レア！' : 'ノーマル'}</div>
+          <div style="font-weight:bold; color:${res.rate > 0 ? '#f1c40f' : '#fff'}">${res.name}</div>
+          <div style="font-size:8px; color:#aaa;">${res.rate > 0 ? 'レア！' : 'ノーマル'}</div>
         `;
         resContainer.appendChild(item);
       });
