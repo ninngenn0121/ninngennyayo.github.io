@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム - テスト版</title>
+  <title>ぷにぷに風パズルゲーム - 修正版</title>
   <style>
     * {
       box-sizing: border-box;
@@ -143,7 +143,7 @@
       width: 54px;
       height: 54px;
       border-radius: 50%;
-      border: 4px solid #f1c40f; /* テスト用に常に点灯枠 */
+      border: 4px solid #f1c40f;
       background: radial-gradient(circle, #e0e0e0 0%, #9e9e9e 100%);
       position: relative;
       cursor: pointer;
@@ -165,7 +165,7 @@
 
     .gauge-overlay {
       position: absolute;
-      bottom: 0; left: 0; width: 100%; height: 100%; /* テスト用常時満タン */
+      bottom: 0; left: 0; width: 100%; height: 100%;
       background: rgba(241, 196, 15, 0.3);
       border-radius: 50%;
       pointer-events: none;
@@ -462,7 +462,7 @@
       <div></div>
     </div>
 
-    <!-- チーム・必殺技ゲージエリア（テスト用に常時即発動可能） -->
+    <!-- チーム・必殺技ゲージエリア -->
     <div id="team-area">
       <div class="char-icon ready" id="team-icon-0" onclick="useSkill(0)">
         <span id="team-emoji-0">🐱</span>
@@ -543,7 +543,6 @@
   <script>
     const { Engine, Bodies, Composite, Runner } = Matter;
 
-    // ---- キャラクターデータ（高確率1%、よわよわ95%） ----
     const CHARACTER_DB = {
       tadokoro: { id: 'tadokoro', name: '田所浩二', emoji: '🍺', color: '#d35400', rate: 0.01, skillType: 'MASS_CLEAR', skillName: '野獣ラッシュ', startGauge: 1.0, extraYpt: 0 },
       kinji:     { id: 'kinji',    name: '金爺',     emoji: '👴', color: '#f39c12', rate: 0.01, skillType: 'BUFF',       skillName: 'ゴールドバフ', startGauge: 1.0,    extraYpt: 4 },
@@ -606,6 +605,7 @@
     let feverTimer = null;
 
     let attackBuffRatio = 1.0;
+    let gaugeBuffRatio = 1.0; // 金爺等のバフ用
     let buffTimer = null;
     let selectedSlotIndex = 0;
 
@@ -619,10 +619,10 @@
     });
 
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v3');
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v4');
       if (!isGranted13500) {
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v3', 'true');
+        localStorage.setItem('puni_granted_13500_v4', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
@@ -921,6 +921,8 @@
       const data = puni.puniData;
       let baseDamage = Math.floor(Math.pow(data.size, 1.8) * 15);
       if (isFever) baseDamage = Math.floor(baseDamage * 1.5);
+      
+      // 金爺などの攻撃力バフを適用
       baseDamage = Math.floor(baseDamage * attackBuffRatio);
 
       applyDamage(baseDamage, puni.position.x, puni.position.y);
@@ -1026,37 +1028,38 @@
           break;
         }
 
-        case 'MASS_CLEAR': {
-          let targetPunis = puniBodies.slice(0, 18);
+        case 'MASS_CLEAR': { // 大量消し（ごっそり消すように修正）
+          let countBefore = puniBodies.length;
+          let targetPunis = puniBodies.slice(0, Math.floor(countBefore * 0.7)); // 7割一掃
           targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 45 * attackBuffRatio);
+          let dmg = Math.floor(targetPunis.length * 50 * attackBuffRatio);
           applyDamage(dmg, canvas.width / 2, canvas.height / 2);
           replenishPunis();
           break;
         }
 
         case 'CENTER_CLEAR': {
-          let targetPunis = puniBodies.filter(p => Math.abs(p.position.y - centerY) < 70);
+          let targetPunis = puniBodies.filter(p => Math.abs(p.position.y - centerY) < 90);
           targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 35 * attackBuffRatio);
+          let dmg = Math.floor(targetPunis.length * 40 * attackBuffRatio);
           applyDamage(dmg, canvas.width / 2, canvas.height / 2);
           replenishPunis();
           break;
         }
 
         case 'BOTTOM_CLEAR': {
-          let targetPunis = puniBodies.filter(p => p.position.y > centerY + 20);
+          let targetPunis = puniBodies.filter(p => p.position.y > centerY);
           targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 35 * attackBuffRatio);
+          let dmg = Math.floor(targetPunis.length * 40 * attackBuffRatio);
           applyDamage(dmg, canvas.width / 2, canvas.height / 2);
           replenishPunis();
           break;
         }
 
         case 'TOP_CLEAR': {
-          let targetPunis = puniBodies.filter(p => p.position.y <= centerY + 20);
+          let targetPunis = puniBodies.filter(p => p.position.y <= centerY);
           targetPunis.forEach(p => removePuni(p));
-          let dmg = Math.floor(targetPunis.length * 35 * attackBuffRatio);
+          let dmg = Math.floor(targetPunis.length * 40 * attackBuffRatio);
           applyDamage(dmg, canvas.width / 2, canvas.height / 2);
           replenishPunis();
           break;
@@ -1067,19 +1070,21 @@
             if (puniBodies.length > 0) removePuni(puniBodies[0]);
             const x = canvas.width * (0.2 + Math.random() * 0.6);
             const slot = Math.floor(Math.random() * 5);
-            createPuni(x, 100, slot, 5);
+            createPuni(x, 100, slot, 6);
           }
           replenishPunis();
           break;
         }
 
-        case 'BUFF': {
+        case 'BUFF': { // 金爺のバフ（攻撃力1.5倍 ＆ 技ゲージたまりやすさ1.5倍）
           attackBuffRatio = 1.5;
+          gaugeBuffRatio = 1.5;
           if (buffTimer) clearTimeout(buffTimer);
           buffTimer = setTimeout(() => {
             attackBuffRatio = 1.0;
+            gaugeBuffRatio = 1.0;
           }, 10000);
-          showDamageText('BUFF UP!', canvas.width / 2, 100);
+          showDamageText('GOLD BUFF UP!', canvas.width / 2, 100);
           break;
         }
       }
@@ -1203,7 +1208,6 @@
       document.getElementById('gacha-modal').style.display = 'none';
     }
 
-    // ---- ガシャ処理（確率変更＆10連確定枠追加） ----
     function drawGacha(count) {
       const cost = count === 1 ? 500 : 4500;
       if (ypt < cost) {
@@ -1215,19 +1219,15 @@
       updateYptDisplay();
 
       const results = [];
-      // 高レアリティキャラのキーリスト (確率各1%)
       const rareKeys = ['tadokoro', 'kinji', 'harinezumi', 'takapi', 'takashikun'];
 
       for (let i = 0; i < count; i++) {
         let selected = CHARACTER_DB.yowayowa;
 
-        // 10連の最後（または単発）で10連の場合は確定枠を適用
         if (count === 10 && i === 9) {
-          // 10連の10枠目は高レアリティの中からランダムで1体確定
           const randomRareKey = rareKeys[Math.floor(Math.random() * rareKeys.length)];
           selected = CHARACTER_DB[randomRareKey];
         } else {
-          // 通常抽選 (よわよわ95%、高レア各1%)
           const rand = Math.random();
           let cumulative = 0;
           const allKeys = [...rareKeys, 'yowayowa'];
