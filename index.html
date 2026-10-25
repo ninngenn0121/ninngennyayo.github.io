@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム</title>
+  <title>ぷにぷに風パズルゲーム - スコアアタック実装版</title>
   <style>
     * {
       box-sizing: border-box;
@@ -43,9 +43,9 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 8px;
+      padding: 0 6px;
       color: #fff;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       border-bottom: 2px solid rgba(255, 255, 255, 0.2);
       z-index: 20;
@@ -53,26 +53,31 @@
 
     .ypt-badge {
       background: linear-gradient(135deg, #f39c12, #f1c40f);
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: 15px;
       color: #000;
       box-shadow: 0 2px 5px rgba(0,0,0,0.4);
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 2px;
     }
 
     .nav-btn {
       background: #34495e;
       color: #fff;
       border: 1px solid #7f8c8d;
-      padding: 4px 8px;
-      border-radius: 8px;
+      padding: 4px 6px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 11px;
+      font-size: 10px;
     }
 
-    /* ---- ステージ・エネミーエリア ---- */
+    .nav-btn.attack-mode-btn {
+      background: #e74c3c;
+      border-color: #c0392b;
+    }
+
+    /* ---- ステージ・エネミーエリア（通常用） / スコアアタック用ヘッダー ---- */
     #stage-area {
       height: 150px;
       display: flex;
@@ -204,6 +209,7 @@
       touch-action: none;
     }
 
+    /* 通常ステージ用HPバー */
     .bowl-hp-container {
       position: absolute;
       top: 12px;
@@ -230,6 +236,21 @@
       display: flex; justify-content: center; align-items: center;
       font-size: 11px; color: #fff; font-weight: bold;
       text-shadow: 1px 1px 2px #000;
+    }
+
+    /* スコアアタック用タイマー表示（上部内側） */
+    .bowl-timer-display {
+      position: absolute;
+      top: 10px;
+      background: rgba(0,0,0,0.7);
+      border: 2px solid #f1c40f;
+      padding: 2px 15px;
+      border-radius: 12px;
+      color: #f1c40f;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 6;
+      display: none;
     }
 
     .bowl-fever-container {
@@ -307,6 +328,7 @@
       z-index: 200;
       color: white;
       padding: 15px;
+      text-align: center;
     }
 
     .modal-title {
@@ -314,7 +336,6 @@
       color: #f1c40f;
       margin-bottom: 12px;
       text-shadow: 2px 2px 4px #000;
-      text-align: center;
     }
 
     .btn {
@@ -446,6 +467,7 @@
     <div class="top-nav">
       <button class="nav-btn" onclick="openStageSelect()">ステージ</button>
       <button class="nav-btn" onclick="openTeamEditModal()">編成</button>
+      <button class="nav-btn attack-mode-btn" onclick="startScoreAttack()">スコアアタック</button>
       <div class="ypt-badge">
         <span>Ypt:</span>
         <span id="ypt-display">13500</span>
@@ -453,7 +475,7 @@
       <button class="nav-btn" onclick="openGachaModal()">ガシャ</button>
     </div>
 
-    <!-- ステージエリア -->
+    <!-- ステージエリア（通常時表示） -->
     <div id="stage-area">
       <div class="stage-header">
         <span id="stage-title-display">ステージ 1</span>
@@ -494,10 +516,14 @@
     <!-- パズルエリア -->
     <div id="puzzle-area">
       <div class="puni-bowl-frame">
-        <div class="bowl-hp-container">
+        <!-- 通常HPバー -->
+        <div class="bowl-hp-container" id="hp-container-elem">
           <div class="bowl-hp-fill" id="hp-bar"></div>
           <div class="bowl-hp-text" id="hp-text">1000 / 1000</div>
         </div>
+
+        <!-- スコアアタック用タイマー -->
+        <div class="bowl-timer-display" id="attack-timer-display">TIME: 60</div>
 
         <canvas id="puzzle-canvas"></canvas>
 
@@ -513,12 +539,21 @@
       <div class="cutin-title" id="cutin-title">ひっさつわざ！</div>
     </div>
 
-    <!-- リザルト画面 -->
+    <!-- 通常ステージリザルト画面 -->
     <div class="modal-overlay" id="result-modal">
       <h2 class="modal-title" id="result-title">STAGE CLEAR!</h2>
       <p id="result-ypt-text" style="margin-bottom:15px; color:#f1c40f; font-weight:bold;"></p>
       <button class="btn" onclick="nextStageOrRestart()">つぎへ / もう一度</button>
       <button class="btn btn-secondary" onclick="openStageSelect()">ステージ選択へ</button>
+    </div>
+
+    <!-- スコアアタック結果リザルト画面 -->
+    <div class="modal-overlay" id="score-attack-result-modal">
+      <h2 class="modal-title">タイムアップ！</h2>
+      <p id="attack-final-score-text" style="font-size:20px; margin-bottom:8px; color:#fff; font-weight:bold;"></p>
+      <p id="attack-highscore-text" style="font-size:14px; margin-bottom:20px; color:#f1c40f; font-weight:bold;"></p>
+      <button class="btn" onclick="startScoreAttack()">もう一度挑戦</button>
+      <button class="btn btn-secondary" onclick="closeScoreAttackResult()">ステージ選択へ</button>
     </div>
 
     <!-- ステージ選択画面 -->
@@ -586,6 +621,7 @@
     let currentStageIndex = 0;
     let unlockedStage = 1;
     let ypt = 13500;
+    let scoreAttackHighScore = 0;
 
     let ownedCharIds = ['cat', 'bear', 'frog', 'fox', 'bunny', 'yowayowa'];
     let myTeam = [
@@ -615,9 +651,13 @@
     const FEVER_MAX = 100;
     let isFever = false;
     let feverTimer = null;
-    let accumulatedFeverDamage = 0; // フィーバー中ダメージ蓄積用
+    let accumulatedFeverDamage = 0;
 
-    // バフ管理（重複加算対応）
+    // ゲームモード切替フラグ ('stage' または 'score_attack')
+    let gameMode = 'stage';
+    let attackTimeLeft = 60;
+    let attackTimerInterval = null;
+
     let attackBuffBonus = 0.0;
     let gaugeBuffBonus = 0.0;
     let selectedSlotIndex = 0;
@@ -632,10 +672,10 @@
     });
 
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v6');
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v7');
       if (!isGranted13500) {
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v6', 'true');
+        localStorage.setItem('puni_granted_13500_v7', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
@@ -644,6 +684,9 @@
 
       const savedStage = localStorage.getItem('puni_unlockedStage');
       if (savedStage !== null) unlockedStage = parseInt(savedStage, 10);
+
+      const savedHighScore = localStorage.getItem('puni_score_attack_highscore');
+      if (savedHighScore !== null) scoreAttackHighScore = parseInt(savedHighScore, 10);
 
       const savedOwned = localStorage.getItem('puni_ownedChars');
       if (savedOwned !== null) ownedCharIds = JSON.parse(savedOwned);
@@ -660,6 +703,7 @@
     function saveGameData() {
       localStorage.setItem('puni_ypt', ypt);
       localStorage.setItem('puni_unlockedStage', unlockedStage);
+      localStorage.setItem('puni_score_attack_highscore', scoreAttackHighScore);
       localStorage.setItem('puni_ownedChars', JSON.stringify(ownedCharIds));
       const teamIds = myTeam.map(c => c.id);
       localStorage.setItem('puni_myTeam', JSON.stringify(teamIds));
@@ -722,6 +766,12 @@
     }
 
     function loadStage(index) {
+      gameMode = 'stage';
+      if (attackTimerInterval) clearInterval(attackTimerInterval);
+
+      document.getElementById('hp-container-elem').style.display = 'block';
+      document.getElementById('attack-timer-display').style.display = 'none';
+
       currentStageIndex = index;
       const stage = STAGES[index];
 
@@ -750,6 +800,69 @@
 
       [...puniBodies].forEach(p => removePuni(p));
       spawnInitialPunis(45);
+    }
+
+    // ---- スコアアタックモード開始 ----
+    function startScoreAttack() {
+      // モーダルが開きっぱなしなら閉じる
+      document.getElementById('score-attack-result-modal').style.display = 'none';
+      document.getElementById('result-modal').style.display = 'none';
+
+      gameMode = 'score_attack';
+      score = 0;
+      attackTimeLeft = 60;
+      feverGauge = 0;
+      isFever = false;
+      accumulatedFeverDamage = 0;
+      attackBuffBonus = 0.0;
+      gaugeBuffBonus = 0.0;
+
+      // UI切替（HPバー隠してタイマー表示）
+      document.getElementById('hp-container-elem').style.display = 'none';
+      const timerDisplay = document.getElementById('attack-timer-display');
+      timerDisplay.style.display = 'block';
+      timerDisplay.innerText = `TIME: ${attackTimeLeft}`;
+
+      document.getElementById('stage-title-display').innerText = `スコアアタック`;
+      document.getElementById('enemy-name-display').innerText = `制限時間アタック`;
+      document.getElementById('enemy-sprite').innerText = `⏱️`;
+      document.getElementById('score-text').innerText = `SCORE: 0`;
+      updateFeverBar();
+
+      for (let i = 0; i < 5; i++) {
+        gauges[i] = 0;
+        updateGaugeUI(i);
+      }
+
+      [...puniBodies].forEach(p => removePuni(p));
+      spawnInitialPunis(45);
+
+      if (attackTimerInterval) clearInterval(attackTimerInterval);
+      attackTimerInterval = setInterval(() => {
+        attackTimeLeft--;
+        timerDisplay.innerText = `TIME: ${attackTimeLeft}`;
+
+        if (attackTimeLeft <= 0) {
+          clearInterval(attackTimerInterval);
+          endScoreAttack();
+        }
+      }, 1000);
+    }
+
+    function endScoreAttack() {
+      if (score > scoreAttackHighScore) {
+        scoreAttackHighScore = score;
+        saveGameData();
+      }
+
+      document.getElementById('attack-final-score-text').innerText = `獲得スコア: ${score}点`;
+      document.getElementById('attack-highscore-text').innerText = `ハイスコア: ${scoreAttackHighScore}点`;
+      document.getElementById('score-attack-result-modal').style.display = 'flex';
+    }
+
+    function closeScoreAttackResult() {
+      document.getElementById('score-attack-result-modal').style.display = 'none';
+      loadStage(0); // 通常ステージ1へ戻す
     }
 
     function createPuni(x, y, teamSlotIndex, size = 1) {
@@ -789,7 +902,7 @@
         const need = targetCount - currentCount;
         for (let i = 0; i < need; i++) {
           setTimeout(() => {
-            if (puniBodies.length < targetCount && enemyHp > 0) {
+            if (puniBodies.length < targetCount && (gameMode === 'score_attack' || enemyHp > 0)) {
               const x = canvas.width / 2 + (Math.random() - 0.5) * 140;
               const slot = Math.floor(Math.random() * 5);
               createPuni(x, 20, slot, 1);
@@ -859,7 +972,9 @@
       };
 
       const startConnect = (e) => {
-        if (enemyHp <= 0) return;
+        if (gameMode === 'stage' && enemyHp <= 0) return;
+        if (gameMode === 'score_attack' && attackTimeLeft <= 0) return;
+
         isConnecting = true;
         connectedPunis = [];
         const pos = getPos(e);
@@ -937,6 +1052,9 @@
       const gaugeGain = list.length * 4 * (1.0 + gaugeBuffBonus);
       addGauge(slot, gaugeGain);
 
+      score += list.length * 15;
+      document.getElementById('score-text').innerText = `SCORE: ${score}`;
+
       addFever(list.length * 2);
       replenishPunis();
     }
@@ -967,8 +1085,13 @@
     }
 
     function applyDamage(amount, x, y) {
+      if (gameMode === 'score_attack') {
+        // スコアアタック中はHP概念なし、単に演出用ダメージテキスト表示
+        showDamageText(amount, x, y);
+        return;
+      }
+
       if (isFever) {
-        // フィーバー中はダメージを蓄積する
         accumulatedFeverDamage += amount;
         showDamageText(`FEVER! +${amount}`, x, y);
       } else {
@@ -1014,7 +1137,7 @@
 
     function startFever() {
       isFever = true;
-      accumulatedFeverDamage = 0; // 蓄積リセット
+      accumulatedFeverDamage = 0;
 
       let feverLeft = 10;
       feverTimer = setInterval(() => {
@@ -1028,9 +1151,8 @@
           feverGauge = 0;
           updateFeverBar();
 
-          // フィーバー終了時に蓄積ダメージを一括放流！
-          if (accumulatedFeverDamage > 0) {
-            const finalFeverDmg = Math.floor(accumulatedFeverDamage * 1.2); // ボーナス倍率1.2倍
+          if (gameMode === 'stage' && accumulatedFeverDamage > 0) {
+            const finalFeverDmg = Math.floor(accumulatedFeverDamage * 1.2);
             showDamageText(`FEVER FINISH! [${finalFeverDmg}]`, canvas.width / 2 - 50, 50);
             applyDamageDirect(finalFeverDmg);
           }
@@ -1038,7 +1160,6 @@
       }, 1000);
     }
 
-    // フィーバー終了時などに直接敵HPを削る用
     function applyDamageDirect(amount) {
       enemyHp = Math.max(0, enemyHp - amount);
       const hpPercent = (enemyHp / enemyMaxHp) * 100;
@@ -1069,7 +1190,9 @@
     }
 
     function useSkill(slot) {
-      if (gauges[slot] < GAUGE_MAX || enemyHp <= 0) return;
+      if (gauges[slot] < GAUGE_MAX) return;
+      if (gameMode === 'stage' && enemyHp <= 0) return;
+      if (gameMode === 'score_attack' && attackTimeLeft <= 0) return;
 
       const char = myTeam[slot];
       if (char.skillType === 'NONE') return;
@@ -1088,7 +1211,6 @@
       }, 900);
     }
 
-    // ---- 大量消し（超高速・連続個別消去処理）の適用 ----
     function executeSkillEffect(char) {
       const centerY = canvas.height / 2;
       const totalAttackMultiplier = 1.0 + attackBuffBonus;
@@ -1139,19 +1261,18 @@
         case 'BUFF': {
           attackBuffBonus += 0.5;
           gaugeBuffBonus += 0.5;
-          showDamageText(`BUFF +50%! (合計:${Math.round((1+attackBuffBonus)*100)}%)`, canvas.width / 2, 100);
+          showDamageText(`BUFF +50%!`, canvas.width / 2, 100);
           break;
         }
       }
     }
 
-    // 超高速かつ連続して1個ずつ（または数個ずつ）バラバラに消去する内部処理
     function executeSequentialClear(targetList, damagePerPuni, multiplier) {
       if (targetList.length === 0) return;
       let index = 0;
 
       const interval = setInterval(() => {
-        if (index < targetList.length && enemyHp > 0) {
+        if (index < targetList.length && (gameMode === 'score_attack' || enemyHp > 0)) {
           const puni = targetList[index];
           const px = puni.position.x;
           const py = puni.position.y;
@@ -1168,10 +1289,12 @@
           clearInterval(interval);
           replenishPunis();
         }
-      }, 25); // 25ミリ秒ごとに1個消去（超高速コンボ演出）
+      }, 25);
     }
 
     function onStageClear() {
+      if (gameMode !== 'stage') return;
+
       let extraPt = 0;
       myTeam.forEach(char => {
         if (char.extraYpt) extraPt += char.extraYpt;
@@ -1208,7 +1331,7 @@
       STAGES.forEach((stg, i) => {
         const card = document.createElement('div');
         const isLocked = (i + 1) > unlockedStage;
-        card.className = `stage-card ${isLocked ? 'locked' : ''} ${i === currentStageIndex ? 'active' : ''}`;
+        card.className = `stage-card ${isLocked ? 'locked' : ''} ${gameMode === 'stage' && i === currentStageIndex ? 'active' : ''}`;
         card.innerHTML = `
           <div style="font-size:20px;">${stg.emoji}</div>
           <div style="font-weight:bold; font-size:11px;">Stage ${stg.id}</div>
@@ -1240,7 +1363,7 @@
       document.getElementById('team-edit-modal').style.display = 'none';
       setupTeamUI();
       saveGameData();
-      loadStage(currentStageIndex);
+      if (gameMode === 'stage') loadStage(currentStageIndex);
     }
 
     function renderTeamEditUI() {
