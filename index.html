@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム - スコアアタック実装版</title>
+  <title>ぷにぷに風パズルゲーム - タイムストップ対応版</title>
   <style>
     * {
       box-sizing: border-box;
@@ -77,7 +77,7 @@
       border-color: #c0392b;
     }
 
-    /* ---- ステージ・エネミーエリア（通常用） / スコアアタック用ヘッダー ---- */
+    /* ---- ステージ・エネミーエリア ---- */
     #stage-area {
       height: 150px;
       display: flex;
@@ -209,7 +209,6 @@
       touch-action: none;
     }
 
-    /* 通常ステージ用HPバー */
     .bowl-hp-container {
       position: absolute;
       top: 12px;
@@ -238,7 +237,6 @@
       text-shadow: 1px 1px 2px #000;
     }
 
-    /* スコアアタック用タイマー表示（上部内側） */
     .bowl-timer-display {
       position: absolute;
       top: 10px;
@@ -475,7 +473,7 @@
       <button class="nav-btn" onclick="openGachaModal()">ガシャ</button>
     </div>
 
-    <!-- ステージエリア（通常時表示） -->
+    <!-- ステージエリア -->
     <div id="stage-area">
       <div class="stage-header">
         <span id="stage-title-display">ステージ 1</span>
@@ -516,13 +514,11 @@
     <!-- パズルエリア -->
     <div id="puzzle-area">
       <div class="puni-bowl-frame">
-        <!-- 通常HPバー -->
         <div class="bowl-hp-container" id="hp-container-elem">
           <div class="bowl-hp-fill" id="hp-bar"></div>
           <div class="bowl-hp-text" id="hp-text">1000 / 1000</div>
         </div>
 
-        <!-- スコアアタック用タイマー -->
         <div class="bowl-timer-display" id="attack-timer-display">TIME: 60</div>
 
         <canvas id="puzzle-canvas"></canvas>
@@ -539,7 +535,7 @@
       <div class="cutin-title" id="cutin-title">ひっさつわざ！</div>
     </div>
 
-    <!-- 通常ステージリザルト画面 -->
+    <!-- リザルト画面 -->
     <div class="modal-overlay" id="result-modal">
       <h2 class="modal-title" id="result-title">STAGE CLEAR!</h2>
       <p id="result-ypt-text" style="margin-bottom:15px; color:#f1c40f; font-weight:bold;"></p>
@@ -653,10 +649,11 @@
     let feverTimer = null;
     let accumulatedFeverDamage = 0;
 
-    // ゲームモード切替フラグ ('stage' または 'score_attack')
+    // ゲームモード＆タイムストップフラグ
     let gameMode = 'stage';
     let attackTimeLeft = 60;
     let attackTimerInterval = null;
+    let isSkillExecuting = false; // 技演出中フラグ
 
     let attackBuffBonus = 0.0;
     let gaugeBuffBonus = 0.0;
@@ -672,10 +669,10 @@
     });
 
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v7');
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v8');
       if (!isGranted13500) {
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v7', 'true');
+        localStorage.setItem('puni_granted_13500_v8', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
@@ -780,6 +777,7 @@
       score = 0;
       feverGauge = 0;
       isFever = false;
+      isSkillExecuting = false;
       accumulatedFeverDamage = 0;
       attackBuffBonus = 0.0;
       gaugeBuffBonus = 0.0;
@@ -802,9 +800,7 @@
       spawnInitialPunis(45);
     }
 
-    // ---- スコアアタックモード開始 ----
     function startScoreAttack() {
-      // モーダルが開きっぱなしなら閉じる
       document.getElementById('score-attack-result-modal').style.display = 'none';
       document.getElementById('result-modal').style.display = 'none';
 
@@ -813,11 +809,11 @@
       attackTimeLeft = 60;
       feverGauge = 0;
       isFever = false;
+      isSkillExecuting = false;
       accumulatedFeverDamage = 0;
       attackBuffBonus = 0.0;
       gaugeBuffBonus = 0.0;
 
-      // UI切替（HPバー隠してタイマー表示）
       document.getElementById('hp-container-elem').style.display = 'none';
       const timerDisplay = document.getElementById('attack-timer-display');
       timerDisplay.style.display = 'block';
@@ -839,6 +835,9 @@
 
       if (attackTimerInterval) clearInterval(attackTimerInterval);
       attackTimerInterval = setInterval(() => {
+        // 技発動中またはフィーバー中は時間のカウントダウンをストップ！
+        if (isSkillExecuting || isFever) return;
+
         attackTimeLeft--;
         timerDisplay.innerText = `TIME: ${attackTimeLeft}`;
 
@@ -862,7 +861,7 @@
 
     function closeScoreAttackResult() {
       document.getElementById('score-attack-result-modal').style.display = 'none';
-      loadStage(0); // 通常ステージ1へ戻す
+      loadStage(0);
     }
 
     function createPuni(x, y, teamSlotIndex, size = 1) {
@@ -1086,7 +1085,6 @@
 
     function applyDamage(amount, x, y) {
       if (gameMode === 'score_attack') {
-        // スコアアタック中はHP概念なし、単に演出用ダメージテキスト表示
         showDamageText(amount, x, y);
         return;
       }
@@ -1200,6 +1198,9 @@
       gauges[slot] = 0;
       updateGaugeUI(slot);
 
+      // タイムストップフラグON
+      isSkillExecuting = true;
+
       const cutin = document.getElementById('cutin-overlay');
       document.getElementById('cutin-char').innerText = char.emoji;
       document.getElementById('cutin-title').innerText = char.skillName;
@@ -1255,6 +1256,7 @@
             createPuni(x, 100, slot, 6);
           }
           replenishPunis();
+          isSkillExecuting = false; // タイムストップ解除
           break;
         }
 
@@ -1262,13 +1264,17 @@
           attackBuffBonus += 0.5;
           gaugeBuffBonus += 0.5;
           showDamageText(`BUFF +50%!`, canvas.width / 2, 100);
+          isSkillExecuting = false; // タイムストップ解除
           break;
         }
       }
     }
 
     function executeSequentialClear(targetList, damagePerPuni, multiplier) {
-      if (targetList.length === 0) return;
+      if (targetList.length === 0) {
+        isSkillExecuting = false;
+        return;
+      }
       let index = 0;
 
       const interval = setInterval(() => {
@@ -1288,6 +1294,7 @@
         } else {
           clearInterval(interval);
           replenishPunis();
+          isSkillExecuting = false; // 連写処理が完了したらタイムストップ解除！
         }
       }, 25);
     }
