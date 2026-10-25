@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム - フィーバータイムストップ修正版</title>
+  <title>ぷにぷに風パズルゲーム - 総合修正版</title>
   <style>
     * {
       box-sizing: border-box;
@@ -538,559 +538,6 @@
     <!-- リザルト画面 -->
     <div class="modal-overlay" id="result-modal">
       <h2 class="modal-title" id="result-title">STAGE CLEAR!</h2>
-      <p id="result-ypt-text" style="margin-bottom:15px; color:#f1ご指摘ありがとうございます！確認したところ、**「フィーバー中（`isFever = true`）は必殺技の発動中であってもフィーバーのタイマーカウントがそのまま減り続けてしまう」** という状態になっていました。
-
-本来は必殺技のカットイン表示中や大量消しの連写処理を行っている間（`isSkillExecuting = true`）は、**スコアアタックの制限時間だけでなくフィーバーのカウントダウンタイマーも停止（タイムストップ）** するのが正しい挙動です。
-
-### 修正内容
-* **必殺技発動中のフィーバータイマー停止**
-  * `isSkillExecuting`（技実行中フラグ）が `true` の間は、フィーバーの残り時間が減らないように物理的にカウントダウン処理をスキップ・一時停止するように修正しました。
-
-最新の `index.html` コードは以下の通りです。上書きしてデプロイ後、技を打っている最中にフィーバーゲージが止まるかお試しください！
-
-### `index.html`
-
-```html
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ぷにぷに風パズルゲーム - フィーバータイムストップ修正版</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-    }
-
-    body {
-      background-color: #111;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      overflow: hidden;
-    }
-
-    #game-container {
-      width: 100%;
-      max-width: 420px;
-      height: 100vh;
-      max-height: 750px;
-      background: linear-gradient(180deg, #87ceeb 0%, #b0e0e6 30%, #556b2f 31%, #8fbc8f 35%, #4682b4 100%);
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      box-shadow: 0 0 25px rgba(0,0,0,0.9);
-      overflow: hidden;
-    }
-
-    /* 上部ナビゲーション / Ypt表示 */
-    .top-nav {
-      height: 42px;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 6px;
-      color: #fff;
-      font-size: 11px;
-      font-weight: bold;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-      z-index: 20;
-    }
-
-    .ypt-badge {
-      background: linear-gradient(135deg, #f39c12, #f1c40f);
-      padding: 3px 8px;
-      border-radius: 15px;
-      color: #000;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-      display: flex;
-      align-items: center;
-      gap: 2px;
-    }
-
-    .nav-btn {
-      background: #34495e;
-      color: #fff;
-      border: 1px solid #7f8c8d;
-      padding: 4px 6px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 10px;
-    }
-
-    .nav-btn.attack-mode-btn {
-      background: #e74c3c;
-      border-color: #c0392b;
-    }
-
-    /* ---- ステージ・エネミーエリア ---- */
-    #stage-area {
-      height: 150px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 12px;
-      position: relative;
-      background: rgba(255, 255, 255, 0.15);
-    }
-
-    .stage-header {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      color: #fff;
-      font-weight: bold;
-      text-shadow: 2px 2px 4px #000;
-      font-size: 14px;
-    }
-
-    .enemy-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      position: relative;
-    }
-
-    .enemy-name {
-      color: #fff;
-      font-weight: bold;
-      text-shadow: 1px 1px 3px #000;
-      font-size: 13px;
-      margin-bottom: 2px;
-    }
-
-    .enemy-sprite {
-      width: 70px;
-      height: 70px;
-      background: radial-gradient(circle, #ff6b6b 0%, #c0392b 100%);
-      border-radius: 50%;
-      border: 3px solid #fff;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 36px;
-      animation: floatEnemy 2s infinite ease-in-out;
-    }
-
-    @keyframes floatEnemy {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
-    }
-
-    /* ---- チーム・必殺技ゲージエリア ---- */
-    #team-area {
-      height: 65px;
-      background: rgba(0, 0, 0, 0.2);
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      padding: 0 10px;
-      z-index: 10;
-    }
-
-    .char-icon {
-      width: 54px;
-      height: 54px;
-      border-radius: 50%;
-      border: 4px solid #888;
-      background: radial-gradient(circle, #e0e0e0 0%, #9e9e9e 100%);
-      position: relative;
-      cursor: pointer;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 26px;
-      box-shadow: inset 0 0 8px rgba(0,0,0,0.6), 0 4px 6px rgba(0,0,0,0.4);
-      transition: transform 0.1s;
-    }
-
-    .char-icon:active { transform: scale(0.92); }
-
-    .char-icon.ready {
-      animation: pulseGlow 0.8s infinite alternate;
-      border-color: #f1c40f;
-    }
-
-    @keyframes pulseGlow {
-      0% { box-shadow: 0 0 5px #f1c40f; transform: scale(1); }
-      100% { box-shadow: 0 0 15px #f1c40f; transform: scale(1.08); }
-    }
-
-    .gauge-overlay {
-      position: absolute;
-      bottom: 0; left: 0; width: 100%; height: 0%;
-      background: rgba(241, 196, 15, 0.7);
-      border-radius: 50%;
-      pointer-events: none;
-      transition: height 0.2s ease-out;
-    }
-
-    /* ---- パズルエリア ---- */
-    #puzzle-area {
-      flex: 1;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .puni-bowl-frame {
-      position: absolute;
-      width: 360px;
-      height: 360px;
-      border-radius: 50%;
-      border: 14px solid #38b6ff;
-      box-shadow: inset 0 0 15px #000, 0 0 15px rgba(0,0,0,0.5);
-      background: radial-gradient(circle, #1a2a40 0%, #0d1520 100%);
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    canvas {
-      background: transparent;
-      touch-action: none;
-    }
-
-    .bowl-hp-container {
-      position: absolute;
-      top: 12px;
-      width: 220px;
-      height: 18px;
-      background: #222;
-      border: 2px solid #fff;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-      z-index: 5;
-    }
-
-    .bowl-hp-fill {
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, #ff9900, #ff5500);
-      transition: width 0.2s ease-out;
-    }
-
-    .bowl-hp-text {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      display: flex; justify-content: center; align-items: center;
-      font-size: 11px; color: #fff; font-weight: bold;
-      text-shadow: 1px 1px 2px #000;
-    }
-
-    .bowl-timer-display {
-      position: absolute;
-      top: 10px;
-      background: rgba(0,0,0,0.7);
-      border: 2px solid #f1c40f;
-      padding: 2px 15px;
-      border-radius: 12px;
-      color: #f1c40f;
-      font-size: 14px;
-      font-weight: bold;
-      z-index: 6;
-      display: none;
-    }
-
-    .bowl-fever-container {
-      position: absolute;
-      bottom: 12px;
-      width: 200px;
-      height: 14px;
-      background: #222;
-      border: 2px solid #fff;
-      border-radius: 8px;
-      overflow: hidden;
-      z-index: 5;
-    }
-
-    .bowl-fever-fill {
-      width: 0%;
-      height: 100%;
-      background: linear-gradient(90deg, #ff007f, #00ffff);
-      transition: width 0.2s ease-out;
-    }
-
-    .damage-text {
-      position: absolute;
-      font-size: 26px;
-      font-weight: 900;
-      color: #ffeb3b;
-      -webkit-text-stroke: 1.5px #d32f2f;
-      pointer-events: none;
-      animation: floatUp 0.8s ease-out forwards;
-      z-index: 30;
-    }
-
-    @keyframes floatUp {
-      0% { opacity: 1; transform: translateY(0) scale(0.8); }
-      50% { transform: translateY(-20px) scale(1.2); }
-      100% { opacity: 0; transform: translateY(-40px) scale(1); }
-    }
-
-    #cutin-overlay {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      z-index: 100;
-    }
-
-    .cutin-title {
-      color: #f1c40f;
-      font-size: 26px;
-      font-weight: bold;
-      text-shadow: 0 0 10px #f39c12;
-      margin-top: 10px;
-      animation: moveIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .cutin-char {
-      font-size: 75px;
-      animation: zoomIn 0.3s ease-out;
-    }
-
-    @keyframes zoomIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
-    @keyframes moveIn { 0% { transform: translateX(-100%); } 100% { transform: translateX(0); } }
-
-    .modal-overlay {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.88);
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 200;
-      color: white;
-      padding: 15px;
-      text-align: center;
-    }
-
-    .modal-title {
-      font-size: 26px;
-      color: #f1c40f;
-      margin-bottom: 12px;
-      text-shadow: 2px 2px 4px #000;
-    }
-
-    .btn {
-      padding: 8px 20px;
-      font-size: 15px;
-      font-weight: bold;
-      background: #2ecc71;
-      color: white;
-      border: none;
-      border-radius: 20px;
-      cursor: pointer;
-      box-shadow: 0 4px 0 #27ae60;
-      margin: 5px;
-      transition: transform 0.1s;
-    }
-
-    .btn:active { transform: translateY(3px); box-shadow: none; }
-    .btn-secondary { background: #e74c3c; box-shadow: 0 4px 0 #c0392b; }
-    .btn-gacha { background: #9b59b6; box-shadow: 0 4px 0 #8e44ad; }
-
-    .stage-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      max-height: 340px;
-      overflow-y: auto;
-      width: 100%;
-      padding: 5px;
-    }
-
-    .stage-card {
-      background: rgba(255,255,255,0.1);
-      border: 2px solid #555;
-      border-radius: 10px;
-      padding: 8px 4px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      cursor: pointer;
-    }
-
-    .stage-card.locked { opacity: 0.4; pointer-events: none; }
-    .stage-card.active { border-color: #f1c40f; background: rgba(241, 196, 15, 0.2); }
-
-    .gacha-results {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      max-height: 230px;
-      overflow-y: auto;
-      margin: 10px 0;
-      width: 100%;
-    }
-
-    .gacha-item {
-      background: rgba(255,255,255,0.15);
-      border-radius: 8px;
-      padding: 6px;
-      width: 75px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 10px;
-    }
-
-    .gacha-item .icon { font-size: 26px; }
-
-    .team-edit-slots {
-      display: flex;
-      justify-content: space-around;
-      width: 100%;
-      margin-bottom: 15px;
-    }
-
-    .edit-slot-box {
-      width: 55px;
-      height: 55px;
-      border: 2px solid #f1c40f;
-      border-radius: 50%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(255,255,255,0.1);
-      cursor: pointer;
-    }
-
-    .edit-slot-box.selected {
-      border-color: #00ffff;
-      box-shadow: 0 0 10px #00ffff;
-    }
-
-    .char-inventory {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      max-height: 220px;
-      overflow-y: auto;
-      width: 100%;
-      padding: 10px;
-      background: rgba(0,0,0,0.3);
-      border-radius: 10px;
-    }
-
-    .inventory-card {
-      width: 60px;
-      height: 70px;
-      background: rgba(255,255,255,0.15);
-      border: 1px solid #777;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 10px;
-    }
-
-    .inventory-card .icon { font-size: 24px; }
-  </style>
-  <script src="[https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js](https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js)"></script>
-</head>
-<body>
-
-  <div id="game-container">
-    <!-- 上部ナビゲーション -->
-    <div class="top-nav">
-      <button class="nav-btn" onclick="openStageSelect()">ステージ</button>
-      <button class="nav-btn" onclick="openTeamEditModal()">編成</button>
-      <button class="nav-btn attack-mode-btn" onclick="startScoreAttack()">スコアアタック</button>
-      <div class="ypt-badge">
-        <span>Ypt:</span>
-        <span id="ypt-display">13500</span>
-      </div>
-      <button class="nav-btn" onclick="openGachaModal()">ガシャ</button>
-    </div>
-
-    <!-- ステージエリア -->
-    <div id="stage-area">
-      <div class="stage-header">
-        <span id="stage-title-display">ステージ 1</span>
-        <span id="score-text">SCORE: 0</span>
-      </div>
-
-      <div class="enemy-box">
-        <div class="enemy-name" id="enemy-name-display">ぶようじん坊</div>
-        <div class="enemy-sprite" id="enemy-sprite">👿</div>
-      </div>
-      <div></div>
-    </div>
-
-    <!-- チーム・必殺技ゲージエリア -->
-    <div id="team-area">
-      <div class="char-icon" id="team-icon-0" onclick="useSkill(0)">
-        <span id="team-emoji-0">🐱</span>
-        <div class="gauge-overlay" id="gauge-0"></div>
-      </div>
-      <div class="char-icon" id="team-icon-1" onclick="useSkill(1)">
-        <span id="team-emoji-1">🐻</span>
-        <div class="gauge-overlay" id="gauge-1"></div>
-      </div>
-      <div class="char-icon" id="team-icon-2" onclick="useSkill(2)">
-        <span id="team-emoji-2">🐸</span>
-        <div class="gauge-overlay" id="gauge-2"></div>
-      </div>
-      <div class="char-icon" id="team-icon-3" onclick="useSkill(3)">
-        <span id="team-emoji-3">🦊</span>
-        <div class="gauge-overlay" id="gauge-3"></div>
-      </div>
-      <div class="char-icon" id="team-icon-4" onclick="useSkill(4)">
-        <span id="team-emoji-4">🐰</span>
-        <div class="gauge-overlay" id="gauge-4"></div>
-      </div>
-    </div>
-
-    <!-- パズルエリア -->
-    <div id="puzzle-area">
-      <div class="puni-bowl-frame">
-        <div class="bowl-hp-container" id="hp-container-elem">
-          <div class="bowl-hp-fill" id="hp-bar"></div>
-          <div class="bowl-hp-text" id="hp-text">1000 / 1000</div>
-        </div>
-
-        <div class="bowl-timer-display" id="attack-timer-display">TIME: 60</div>
-
-        <canvas id="puzzle-canvas"></canvas>
-
-        <div class="bowl-fever-container">
-          <div class="bowl-fever-fill" id="fever-bar"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 必殺技カットイン -->
-    <div id="cutin-overlay">
-      <div class="cutin-char" id="cutin-char">🐱</div>
-      <div class="cutin-title" id="cutin-title">ひっさつわざ！</div>
-    </div>
-
-    <!-- リザルト画面 -->
-    <div class="modal-overlay" id="result-modal">
-      <h2 class="modal-title" id="result-title">STAGE CLEAR!</h2>
       <p id="result-ypt-text" style="margin-bottom:15px; color:#f1c40f; font-weight:bold;"></p>
       <button class="btn" onclick="nextStageOrRestart()">つぎへ / もう一度</button>
       <button class="btn btn-secondary" onclick="openStageSelect()">ステージ選択へ</button>
@@ -1202,11 +649,10 @@
     let feverTimer = null;
     let accumulatedFeverDamage = 0;
 
-    // ゲームモード＆タイムストップフラグ
     let gameMode = 'stage';
     let attackTimeLeft = 60;
     let attackTimerInterval = null;
-    let isSkillExecuting = false; // 技演出中フラグ
+    let isSkillExecuting = false;
 
     let attackBuffBonus = 0.0;
     let gaugeBuffBonus = 0.0;
@@ -1222,10 +668,10 @@
     });
 
     function loadSavedData() {
-      const isGranted13500 = localStorage.getItem('puni_granted_13500_v9');
+      const isGranted13500 = localStorage.getItem('puni_granted_13500_v10');
       if (!isGranted13500) {
         ypt = 13500;
-        localStorage.setItem('puni_granted_13500_v9', 'true');
+        localStorage.setItem('puni_granted_13500_v10', 'true');
         saveGameData();
       } else {
         const savedYpt = localStorage.getItem('puni_ypt');
@@ -1357,6 +803,9 @@
     function startScoreAttack() {
       document.getElementById('score-attack-result-modal').style.display = 'none';
       document.getElementById('result-modal').style.display = 'none';
+      document.getElementById('stage-modal').style.display = 'none';
+      document.getElementById('team-edit-modal').style.display = 'none';
+      document.getElementById('gacha-modal').style.display = 'none';
 
       if (feverTimer) clearInterval(feverTimer);
 
@@ -1391,7 +840,6 @@
 
       if (attackTimerInterval) clearInterval(attackTimerInterval);
       attackTimerInterval = setInterval(() => {
-        // 技発動中またはフィーバー中は時間のカウントダウンをストップ！
         if (isSkillExecuting || isFever) return;
 
         attackTimeLeft--;
@@ -1689,7 +1137,6 @@
       document.getElementById('fever-bar').style.width = `${percent}%`;
     }
 
-    // ---- フィーバー処理（必殺技使用時はフィーバータイマーもストップするよう改善） ----
     function startFever() {
       isFever = true;
       accumulatedFeverDamage = 0;
@@ -1698,7 +1145,6 @@
       if (feverTimer) clearInterval(feverTimer);
 
       feverTimer = setInterval(() => {
-        // 技の実行・演出中はフィーバーのゲージ減少もストップ！
         if (isSkillExecuting) return;
 
         feverLeft -= 1;
@@ -1760,7 +1206,6 @@
       gauges[slot] = 0;
       updateGaugeUI(slot);
 
-      // タイムストップフラグON（タイマーとフィーバー両方が停止）
       isSkillExecuting = true;
 
       const cutin = document.getElementById('cutin-overlay');
@@ -1818,7 +1263,7 @@
             createPuni(x, 100, slot, 6);
           }
           replenishPunis();
-          isSkillExecuting = false; // タイムストップ解除
+          isSkillExecuting = false;
           break;
         }
 
@@ -1826,7 +1271,7 @@
           attackBuffBonus += 0.5;
           gaugeBuffBonus += 0.5;
           showDamageText(`BUFF +50%!`, canvas.width / 2, 100);
-          isSkillExecuting = false; // タイムストップ解除
+          isSkillExecuting = false;
           break;
         }
       }
@@ -1840,10 +1285,11 @@
       let index = 0;
 
       const interval = setInterval(() => {
-        if (index < targetList.length && (gameMode === 'score_attack' || enemyHp > 0)) {
+        if (index < targetList.length && (gameMode === 'score_attack' || enemyHp <= 0 === false)) {
           const puni = targetList[index];
           const px = puni.position.x;
           const py = puni.position.y;
+          const slot = puni.puniData.slot;
           
           removePuni(puni);
           
@@ -1852,11 +1298,15 @@
           score += dmg * 5;
           document.getElementById('score-text').innerText = `SCORE: ${score}`;
 
+          // ★追加: 技で消したときもチームキャラ全員（または消したぷにの枠）のゲージをためる！ (金爺ボーナスも反映)
+          const gaugeGain = 2 * (1.0 + gaugeBuffBonus);
+          addGauge(slot, gaugeGain);
+
           index++;
         } else {
           clearInterval(interval);
           replenishPunis();
-          isSkillExecuting = false; // 連写演出完了後にタイムストップ解除！
+          isSkillExecuting = false;
         }
       }, 25);
     }
@@ -1894,6 +1344,10 @@
     }
 
     function openStageSelect() {
+      document.getElementById('result-modal').style.display = 'none';
+      document.getElementById('team-edit-modal').style.display = 'none';
+      document.getElementById('gacha-modal').style.display = 'none';
+
       const grid = document.getElementById('stage-grid');
       grid.innerHTML = '';
 
@@ -1909,7 +1363,6 @@
         if (!isLocked) {
           card.onclick = () => {
             closeStageSelect();
-            document.getElementById('result-modal').style.display = 'none';
             loadStage(i);
           };
         }
@@ -1924,6 +1377,10 @@
     }
 
     function openTeamEditModal() {
+      document.getElementById('result-modal').style.display = 'none';
+      document.getElementById('stage-modal').style.display = 'none';
+      document.getElementById('gacha-modal').style.display = 'none';
+
       renderTeamEditUI();
       document.getElementById('team-edit-modal').style.display = 'flex';
     }
@@ -1973,6 +1430,10 @@
     }
 
     function openGachaModal() {
+      document.getElementById('result-modal').style.display = 'none';
+      document.getElementById('stage-modal').style.display = 'none';
+      document.getElementById('team-edit-modal').style.display = 'none';
+
       document.getElementById('gacha-results').innerHTML = '';
       document.getElementById('gacha-modal').style.display = 'flex';
     }
